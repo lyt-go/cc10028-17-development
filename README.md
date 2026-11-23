@@ -77,5 +77,31 @@ npm run dev
 - 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
 
+## 外部字典导入与关系端点归并
+
+术语归一支持外部词表入口（前端「字典导入审核」页，或调用下列专用接口）：
+
+| 接口 | 说明 |
+| --- | --- |
+| `POST /api/term_normalize/dictionary/import` | 上传 CSV/JSONL 字典（含源术语、标准术语、字典版本、来源），生成导入术语候选映射 |
+| `POST /api/term_normalize/dictionary/batches/{id}/resume` | 导入中断后按检查点恢复，已落盘候选按幂等键只写一次 |
+| `GET /api/term_normalize/dictionary/candidates` | 候选映射清单（可按状态过滤） |
+| `POST /api/term_normalize/dictionary/candidates/{key}/review` | 无冲突候选独立确认生效 |
+| `GET /api/term_normalize/dictionary/conflicts` | 同简称指向多个标准词的冲突组 |
+| `POST /api/term_normalize/dictionary/conflicts/{key}/resolve` | 冲突裁决：中选候选生效，落选候选驳回留痕 |
+| `GET /api/term_normalize/dictionary/endpoint?term=` | 端点查询：争议期旧端点保留可用，裁决后指向实体身份与确认版本 |
+| `POST /api/relation_extract/{id}/resolve-endpoints` | 读取已生效候选映射重算关系端点 |
+| `GET /api/relation_extract/{id}/endpoint-versions` | 端点重算历史版本，旧关系可还原当时词义 |
+| `GET /api/relation_extract/{id}/unmerged-evidence` | 未归并端点证据（含争议保留与未登录词） |
+
+关键规则：
+
+- 冲突组键由「简称 + 标准词集合」内容哈希生成，同一批内容换顺序导入得到同一组
+  冲突，不能把批次冲突归结成上传行顺序；
+- 每条候选保留原词、字典版本、来源与文件行号；无冲突候选可独立生效，不被其他
+  批次的冲突阻塞；
+- 关系端点产物按 `v1/v2/...` 版本化追加，原始端点文本逐版保留，已交付的旧关系
+  可凭历史版本还原词义。
+
 领域：数据工程
 子方向：数据采集、爬虫与RPA
